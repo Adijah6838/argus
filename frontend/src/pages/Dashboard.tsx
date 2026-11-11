@@ -5,6 +5,10 @@ import { fetchApi, removeToken } from '../api/client';
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -28,10 +32,29 @@ export default function Dashboard() {
     onError: (err: any) => alert(`❌ Upload failed: ${err.message}`)
   });
 
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const res = await fetchApi(`/documents/search/query?q=${encodeURIComponent(searchQuery)}`);
+      setSearchResults(res);
+    } catch (err: any) {
+      alert(`Search failed: ${err.message}`);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200">
       <nav className="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-blue-500">ARGUS</h1>
+        <div className="flex gap-6 items-center">
+          <h1 className="text-2xl font-bold text-blue-500">ARGUS</h1>
+          <span className="text-sm font-bold text-blue-400 border-b-2 border-blue-400 pb-1">Dashboard</span>
+          <Link to="/investigations" className="text-sm text-slate-400 hover:text-white">Investigations</Link>
+        </div>
         <div className="flex gap-4">
           <Link to="/compare" className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-bold text-white">
             Compare Documents
@@ -43,6 +66,50 @@ export default function Dashboard() {
       </nav>
 
       <div className="p-8 max-w-7xl mx-auto">
+        
+        {/* Search Bar */}
+        <form onSubmit={handleSearch} className="mb-8 flex gap-2">
+          <input 
+            type="text" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search document contents (e.g., 'invoice', 'acme')..."
+            className="flex-1 p-3 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:border-blue-500"
+          />
+          <button type="submit" disabled={isSearching} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded font-bold text-white">
+            {isSearching ? 'Searching...' : 'Search'}
+          </button>
+          {searchResults !== null && (
+            <button type="button" onClick={() => { setSearchResults(null); setSearchQuery(''); }} className="bg-slate-600 hover:bg-slate-500 px-4 py-3 rounded font-bold text-white">
+              Clear
+            </button>
+          )}
+        </form>
+
+        {/* Search Results */}
+        {searchResults !== null && (
+          <div className="bg-slate-800 p-6 rounded-lg border border-blue-900 mb-8">
+            <h2 className="text-lg font-bold mb-4 text-white">Search Results ({searchResults.length})</h2>
+            {searchResults.length === 0 ? (
+              <p className="text-slate-400">No documents matched your query.</p>
+            ) : (
+              <div className="space-y-4">
+                {searchResults.map((res: any) => (
+                  <div key={res.id} className="bg-slate-900 p-4 rounded border border-slate-700">
+                    <div className="font-bold text-blue-400 mb-2">{res.filename}</div>
+                    {/* We use dangerouslySetInnerHTML because Postgres returns <mark> tags for highlighting */}
+                    <div 
+                      className="text-sm text-slate-300" 
+                      dangerouslySetInnerHTML={{ __html: res.highlighted_content }} 
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Upload Section */}
         <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mb-8 flex items-center gap-4">
           <div className="flex-1">
             <h2 className="text-lg font-semibold mb-2">Upload Document</h2>
@@ -53,6 +120,7 @@ export default function Dashboard() {
           </button>
         </div>
 
+        {/* Document List */}
         <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>

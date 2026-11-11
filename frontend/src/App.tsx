@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DocumentView from './pages/DocumentView';
 import Compare from './pages/Compare';
+import Investigations from './pages/Investigations';
 import { getToken } from './api/client';
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/document/:id" element={<ProtectedRoute><DocumentView /></ProtectedRoute>} />
           <Route path="/compare" element={<ProtectedRoute><Compare /></ProtectedRoute>} />
+          <Route path="/investigations" element={<ProtectedRoute><Investigations /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

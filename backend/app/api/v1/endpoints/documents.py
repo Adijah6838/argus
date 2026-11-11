@@ -2,8 +2,9 @@ import os
 import uuid
 import hashlib
 from typing import List
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.db.session import SessionLocal
 from app.models.user import User
@@ -103,18 +104,17 @@ def get_extracted_entities(document_id: str, db: Session = Depends(get_db), curr
         {"id": str(e.id), "type": e.entity_type, "value": e.entity_value, "confidence": e.confidence}
         for e in entities
     ]
+
 @router.get("/compare/{doc_a_id}/{doc_b_id}")
 def compare_documents(doc_a_id: str, doc_b_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.services.comparison import DocumentComparer
     
-    # Fetch entities for both docs
     entities_a = db.query(ExtractedEntity).filter(ExtractedEntity.document_id == doc_a_id).all()
     entities_b = db.query(ExtractedEntity).filter(ExtractedEntity.document_id == doc_b_id).all()
 
     if not entities_a or not entities_b:
         raise HTTPException(status_code=400, detail="Both documents must have extracted entities to compare.")
 
-    # Group entities by type
     def group_entities(ents):
         grouped = {}
         for e in ents:
@@ -128,3 +128,34 @@ def compare_documents(doc_a_id: str, doc_b_id: str, db: Session = Depends(get_db
 
     result = DocumentComparer.compare(grouped_a, grouped_b)
     return result
+
+@router.get("/search/query")
+def search_documents(
+    q: str = Query(..., min_length=2),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # PostgreSQL Full-Text Search
+    # This ranks results based on relevance (ts_rank)
+    search_query = text("""
+        SELECT d.id, d.original_filename, d.created_at, et.content,
+               ts_headline('english', et.content, plainto_tsquery('english', :query), 'StartSel=<mark>, StopSel=</mark>') as highlighted_content
+        FROM documents d
+        JOIN extracted_texts et ON d.id = et.document_id
+        WHERE d.user_id = :user_id
+          AND to_tsvector('english', et.content) @@ plainto_tsquery('english', :query)
+        ORDER BY ts_rank(to_tsvector('english', et.content), plainto_tsquery('english', :query)) DESC
+        LIMIT 10
+    """)
+    
+    results = db.execute(search_query, {"user_id": str(current_user.id), "query": q}).fetchall()
+    
+    return [
+        {
+            "id": str(row.id),
+            "filename": row.original_filename,
+            "created_at": row.created_at,
+            "highlighted_content": row.highlighted_content
+        }
+        for row in results
+    ]

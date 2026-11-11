@@ -70,3 +70,52 @@ def add_note(
     db.add(note)
     db.commit()
     return {"message": "Note added successfully"}
+from fastapi import Response
+from app.models.extracted_entity import ExtractedEntity
+from app.services.report_generator import ReportGenerator
+
+@router.get("/{inv_id}/report/{format}")
+def generate_report(
+    inv_id: str, format: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inv = db.query(Investigation).filter(Investigation.id == inv_id, Investigation.user_id == current_user.id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+
+    # Gather Data
+    notes = db.query(InvestigationNote).filter(InvestigationNote.investigation_id == inv.id).all()
+    inv_docs = db.query(InvestigationDocument).filter(InvestigationDocument.investigation_id == inv.id).all()
+    
+    documents_data = []
+    for inv_doc in inv_docs:
+        doc = db.query(Document).filter(Document.id == inv_doc.document_id).first()
+        entities = db.query(ExtractedEntity).filter(ExtractedEntity.document_id == doc.id).all()
+        documents_data.append({
+            "filename": doc.original_filename,
+            "entities": [{"type": e.entity_type, "value": e.entity_value} for e in entities]
+        })
+
+    report_data = {
+        "title": inv.title,
+        "status": inv.status,
+        "created_at": inv.created_at.strftime("%Y-%m-%d %H:%M"),
+        "description": inv.description,
+        "notes": [{"content": n.content, "created_at": n.created_at.strftime("%Y-%m-%d")} for n in notes],
+        "documents": documents_data
+    }
+
+    # Generate Output
+    if format == "json":
+        json_str = ReportGenerator.generate_json_report(report_data)
+        return Response(content=json_str, media_type="application/json", headers={
+            "Content-Disposition": f"attachment; filename=report_{inv.id}.json"
+        })
+    elif format == "pdf":
+        pdf_bytes = ReportGenerator.generate_pdf_report(report_data)
+        return Response(content=pdf_bytes, media_type="application/pdf", headers={
+            "Content-Disposition": f"attachment; filename=report_{inv.id}.pdf"
+        })
+    else:
+        raise HTTPException(status_code=400, detail="Invalid format. Use 'json' or 'pdf'.")
