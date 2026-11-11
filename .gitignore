@@ -1,4 +1,4 @@
-__pycache__/
+﻿__pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
@@ -9,3 +9,4 @@ dist/
 !.env.example
 *.log
 backend-data/
+test_*.txt

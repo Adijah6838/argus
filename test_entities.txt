@@ -1,5 +1,0 @@
-﻿Company: Acme Technologies
-Invoice Number: INV-2026-001
-Invoice Date: 10 November 2026
-Total Amount: $4,500
-Contact: accounts@acme.example

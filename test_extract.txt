@@ -1,1 +1,0 @@
-﻿Hello ARGUS! This is a brand new document to test the extraction engine.
